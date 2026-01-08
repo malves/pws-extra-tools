@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PET - Connexion</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
+    <div class="min-h-screen flex items-center justify-center p-4">
+        <div class="max-w-md w-full">
+            <!-- Logo et titre -->
+            <div class="text-center mb-8">
+                <div class="inline-flex items-center justify-center w-16 h-16 bg-red-500 rounded-2xl mb-4">
+                    <i class="fas fa-plus text-white text-2xl"></i>
+                </div>
+                <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">PET Dashboard</h1>
+                <p class="text-gray-600 dark:text-gray-400">Connectez-vous à votre espace PowerSpace</p>
+            </div>
+            
+            <!-- Card de connexion -->
+            <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-8 shadow-lg">
+                <form id="login-form" class="space-y-6">
+                    <!-- Email -->
+                    <div>
+                        <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Email
+                        </label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-envelope text-gray-400 dark:text-gray-500"></i>
+                            </div>
+                            <input
+                                type="email"
+                                id="email"
+                                name="email"
+                                required
+                                autocomplete="email"
+                                class="block w-full pl-10 pr-4 py-3 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                                placeholder="votre-email@exemple.com"
+                            >
+                        </div>
+                    </div>
+                    
+                    <!-- Password -->
+                    <div>
+                        <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Mot de passe
+                        </label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-lock text-gray-400 dark:text-gray-500"></i>
+                            </div>
+                            <input
+                                type="password"
+                                id="password"
+                                name="password"
+                                required
+                                autocomplete="current-password"
+                                class="block w-full pl-10 pr-12 py-3 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                                placeholder="••••••••"
+                            >
+                            <button
+                                type="button"
+                                onclick="togglePasswordVisibility()"
+                                class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            >
+                                <i id="password-toggle-icon" class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Remember me -->
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <input
+                                id="remember-me"
+                                name="remember-me"
+                                type="checkbox"
+                                class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                            >
+                            <label for="remember-me" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                                Se souvenir de moi
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Error message -->
+                    <div id="error-message" class="hidden">
+                        <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                            <div class="flex items-start gap-3">
+                                <i class="fas fa-exclamation-circle text-red-600 dark:text-red-400 mt-0.5"></i>
+                                <div>
+                                    <h3 class="text-sm font-medium text-red-800 dark:text-red-200">Erreur de connexion</h3>
+                                    <p id="error-text" class="text-sm text-red-700 dark:text-red-300 mt-1"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Submit button -->
+                    <button
+                        type="submit"
+                        id="submit-button"
+                        class="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-950 text-white font-medium rounded-lg hover:bg-indigo-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                    >
+                        <span id="button-text">Se connecter</span>
+                        <i id="button-icon" class="fas fa-arrow-right"></i>
+                    </button>
+                </form>
+            </div>
+            
+            <!-- Info -->
+            <div class="mt-6 text-center">
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                    Utilisez vos identifiants PowerSpace pour vous connecter
+                </p>
+            </div>
+            
+            <!-- Dark Mode Toggle -->
+            <div class="mt-8 flex items-center justify-center gap-3">
+                <span class="text-sm text-gray-600 dark:text-gray-400">Mode sombre</span>
+                <button id="dark-mode-toggle" onclick="toggleDarkMode()" class="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-200 transition-colors">
+                    <span class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform translate-x-1"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="/script.js"></script>
+    <script src="/login.js"></script>
+</body>
+</html>

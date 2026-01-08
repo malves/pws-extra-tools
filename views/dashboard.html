@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PET - Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
+    <div class="flex h-screen">
+        <!-- Sidebar -->
+        <div class="w-72 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col transition-colors duration-200">
+            <!-- Logo -->
+            <div class="p-6 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <div class="w-8 h-8 bg-red-500 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-plus text-white text-sm"></i>
+                        </div>
+                        <span class="text-xl font-bold text-gray-900 dark:text-white">PET</span>
+                    </div>
+                    <div id="pws-connection-badge">
+                        <!-- Badge de connexion PowerSpace -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Search -->
+            <div class="px-4 py-4 border-b border-gray-200 dark:border-gray-700">
+                <div class="relative">
+                    <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 text-sm"></i>
+                    <input 
+                        type="text" 
+                        placeholder="Search option..."
+                        class="w-full pl-10 pr-4 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400 dark:placeholder-gray-500"
+                    >
+                    <span class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 text-xs">/</span>
+                </div>
+            </div>
+            
+            <!-- Navigation -->
+            <nav class="flex-1 p-4 space-y-1">
+                <a href="/dashboard" class="sidebar-item active flex items-center gap-3 px-3 py-2.5 text-gray-700 dark:text-gray-200 rounded-lg">
+                    <i class="fas fa-home text-gray-500 dark:text-gray-400"></i>
+                    <span class="text-sm">Home</span>
+                </a>
+                <a href="/insights" class="sidebar-item flex items-center gap-3 px-3 py-2.5 text-gray-700 dark:text-gray-200 rounded-lg">
+                    <i class="fas fa-chart-line text-gray-500 dark:text-gray-400"></i>
+                    <span class="text-sm">Insights</span>
+                </a>
+            </nav>
+            
+            <!-- Bottom Section -->
+            <div class="p-4 border-t border-gray-200 dark:border-gray-700 space-y-4">
+                <!-- User Profile -->
+                <div id="user-profile-section" class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-indigo-100 dark:bg-indigo-900 rounded-full flex items-center justify-center">
+                        <span id="user-initials" class="text-sm font-medium text-indigo-700 dark:text-indigo-300">--</span>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div id="user-fullname" class="text-sm font-medium text-gray-900 dark:text-gray-100">Chargement...</div>
+                        <div id="user-email" class="text-xs text-gray-500 dark:text-gray-400 truncate">--</div>
+                    </div>
+                    <button onclick="logout()" class="text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors" title="Se déconnecter">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </button>
+                </div>
+                
+                <!-- Dark Mode Toggle -->
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-700 dark:text-gray-300">Dark mode</span>
+                    <button id="dark-mode-toggle" onclick="toggleDarkMode()" class="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-200 transition-colors">
+                        <span class="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform translate-x-1"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="flex-1 overflow-auto">
+            <div class="max-w-7xl mx-auto p-8">
+                <!-- Welcome Section -->
+                <div class="mb-8">
+                    <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-2 flex items-center">
+                        Dashboard PowerSpace
+                    </h1>
+                    <p class="text-lg text-gray-600 dark:text-gray-400">Statistiques et activité en temps réel</p>
+                </div>
+                
+                <!-- Quick Stats -->
+                <div id="stats-container" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <!-- Stats chargées dynamiquement -->
+                </div>
+                
+                <!-- Chart -->
+                <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 mb-8">
+                    <div class="mb-6">
+                        <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Performance 7 derniers jours</h2>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Évolution des displays et commissions</p>
+                    </div>
+                    <div id="chart-container" style="height: 300px;">
+                        <!-- Chart chargé dynamiquement -->
+                    </div>
+                </div>
+                
+                <!-- Recent Activity -->
+                <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Activité récente</h2>
+                        <a href="/insights" class="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium">
+                            Voir Insights <i class="fas fa-arrow-right ml-1"></i>
+                        </a>
+                    </div>
+                    
+                    <div id="activity-container" class="space-y-2">
+                        <!-- Activity feed chargée dynamiquement -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="/auth-check.js"></script>
+    <script src="/auth.js"></script>
+    <script src="/user-profile.js"></script>
+    <script src="/script.js"></script>
+    <script src="/home.js"></script>
+</body>
+</html>

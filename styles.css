@@ -1,0 +1,44 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+body {
+    font-family: 'Inter', sans-serif;
+}
+
+.contract-card {
+    transition: all 0.3s ease;
+}
+
+.contract-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+.tab-btn {
+    transition: all 0.2s ease;
+}
+
+.tab-btn.active {
+    background-color: #f3f4f6;
+    font-weight: 500;
+}
+
+.sidebar-item {
+    transition: all 0.2s ease;
+}
+
+.sidebar-item:hover {
+    background-color: #f3f4f6;
+}
+
+.sidebar-item.active {
+    background-color: #f3f4f6;
+    font-weight: 500;
+}
+
+.dark .sidebar-item:hover {
+    background-color: #374151;
+}
+
+.dark .sidebar-item.active {
+    background-color: #374151;
+}
