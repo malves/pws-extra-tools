@@ -1,3 +1,6 @@
 node_modules/
 *.log
 .DS_Store
+
+# Data folder (JSON mappings and temp files)
+data/

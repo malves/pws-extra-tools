@@ -1,18 +1,40 @@
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const path = require('path');
+const multer = require('multer');
+
+// Modules locaux
+const mappingsStore = require('./mappings-store');
+const fileParser = require('./file-parser');
 
 const app = express();
 const PORT = 3000;
 
 const GRAPHQL_URL = 'https://gql.powerspace.com/graphql';
 
+// Configuration de multer pour l'upload en mémoire
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+        fileSize: 50 * 1024 * 1024 // 50 MB max
+    },
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = ['.csv', '.xlsx', '.xls'];
+        const ext = path.extname(file.originalname).toLowerCase();
+        if (allowedTypes.includes(ext)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Type de fichier non supporté. Utilisez CSV ou XLSX.'));
+        }
+    }
+});
+
 // Middleware
 app.use(express.json());
 app.use(cookieParser());
 
-// Servir les fichiers statiques
-app.use(express.static(path.join(__dirname)));
+// Initialiser le fichier de mappings au démarrage
+mappingsStore.initMappings();
 
 // Fonction pour faire une requête GraphQL
 async function gqlRequest({ token, operationName, query, variables }) {
@@ -663,6 +685,242 @@ app.post('/api/powerspace/adgroup-stats', authenticateToken, async (req, res) =>
     }
 });
 
+// ============================================
+// ROUTES UPLOAD ET PARSING DE FICHIERS
+// ============================================
+
+// Route pour uploader et prévisualiser un fichier (lignes brutes)
+app.post('/api/upload/preview', (req, res) => {
+    upload.single('file')(req, res, (err) => {
+        if (err instanceof multer.MulterError) {
+            // Erreur Multer (taille de fichier, etc.)
+            console.error('❌ Erreur Multer:', err.message);
+            return res.status(400).json({
+                success: false,
+                error: err.code === 'LIMIT_FILE_SIZE' 
+                    ? 'Fichier trop volumineux (max 50 MB)' 
+                    : err.message
+            });
+        } else if (err) {
+            // Autre erreur
+            console.error('❌ Erreur upload:', err.message);
+            return res.status(400).json({
+                success: false,
+                error: err.message
+            });
+        }
+        
+        // Pas d'erreur, traiter le fichier
+        try {
+            if (!req.file) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Aucun fichier fourni'
+                });
+            }
+
+            console.log(`📁 Upload reçu: ${req.file.originalname} (${req.file.size} bytes)`);
+
+            // Sauvegarder le fichier temporairement
+            const fileId = fileParser.saveTempFile(req.file.buffer, req.file.originalname);
+
+            // Prévisualiser les premières lignes
+            const preview = fileParser.previewFile(fileId, 30);
+
+            // Détecter le séparateur
+            const separator = fileParser.detectSeparator(preview.lines);
+
+            res.json({
+                success: true,
+                data: {
+                    fileId: fileId,
+                    originalName: req.file.originalname,
+                    lines: preview.lines,
+                    totalLines: preview.totalLines,
+                    isExcel: preview.isExcel,
+                    detectedSeparator: separator,
+                    sheetNames: preview.sheetNames || null
+                }
+            });
+
+        } catch (error) {
+            console.error('❌ Erreur lors de la prévisualisation:', error.message);
+            res.status(500).json({
+                success: false,
+                error: error.message
+            });
+        }
+    });
+});
+
+// Route pour parser un fichier à partir d'une ligne donnée
+app.post('/api/upload/parse', (req, res) => {
+    try {
+        const { fileId, startLine, separator } = req.body;
+
+        if (!fileId) {
+            return res.status(400).json({
+                success: false,
+                error: 'fileId est requis'
+            });
+        }
+
+        console.log(`📊 Parsing du fichier ${fileId} à partir de la ligne ${startLine || 0}`);
+
+        // Parser le fichier
+        const result = fileParser.parseFile(fileId, startLine || 0, separator || 'auto');
+
+        res.json({
+            success: true,
+            data: {
+                columns: result.columns,
+                data: result.data,
+                separator: result.separator,
+                rowCount: result.rowCount,
+                preview: result.data.slice(0, 10) // 10 premières lignes pour aperçu
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Erreur lors du parsing:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// Route pour supprimer un fichier temporaire
+app.delete('/api/upload/:fileId', (req, res) => {
+    try {
+        const { fileId } = req.params;
+        const deleted = fileParser.deleteTempFile(fileId);
+
+        res.json({
+            success: true,
+            deleted: deleted
+        });
+
+    } catch (error) {
+        console.error('❌ Erreur lors de la suppression:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// ============================================
+// ROUTES MAPPINGS ADCOPY
+// ============================================
+
+// Route pour récupérer tous les mappings
+app.get('/api/mappings', (req, res) => {
+    try {
+        const mappings = mappingsStore.getAllMappings();
+
+        res.json({
+            success: true,
+            data: mappings
+        });
+
+    } catch (error) {
+        console.error('❌ Erreur lors de la récupération des mappings:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// Route pour récupérer les mappings pour des valeurs spécifiques
+app.post('/api/mappings/lookup', (req, res) => {
+    try {
+        const { externalValues } = req.body;
+
+        if (!externalValues || !Array.isArray(externalValues)) {
+            return res.status(400).json({
+                success: false,
+                error: 'externalValues doit être un tableau'
+            });
+        }
+
+        const mappings = mappingsStore.getMappingsByExternalValues(externalValues);
+
+        // Créer un objet pour un accès rapide
+        const mappingsMap = {};
+        mappings.forEach(m => {
+            mappingsMap[m.external_value] = m.adcopy_name;
+        });
+
+        res.json({
+            success: true,
+            data: {
+                mappings: mappingsMap,
+                found: mappings.length,
+                total: externalValues.length
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Erreur lors de la recherche des mappings:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// Route pour sauvegarder des mappings (batch)
+app.post('/api/mappings', (req, res) => {
+    try {
+        const { mappings } = req.body;
+
+        if (!mappings || !Array.isArray(mappings)) {
+            return res.status(400).json({
+                success: false,
+                error: 'mappings doit être un tableau'
+            });
+        }
+
+        console.log(`💾 Sauvegarde de ${mappings.length} mapping(s)`);
+
+        const count = mappingsStore.upsertMappings(mappings);
+
+        res.json({
+            success: true,
+            saved: count
+        });
+
+    } catch (error) {
+        console.error('❌ Erreur lors de la sauvegarde des mappings:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// Route pour supprimer un mapping par ID
+app.delete('/api/mappings/:id', (req, res) => {
+    try {
+        const id = parseInt(req.params.id);
+        const deleted = mappingsStore.deleteMapping(id);
+
+        res.json({
+            success: true,
+            deleted: deleted
+        });
+
+    } catch (error) {
+        console.error('❌ Erreur lors de la suppression du mapping:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
 // Route de déconnexion
 app.post('/api/auth/logout', (req, res) => {
     res.clearCookie('pws_token');
@@ -674,6 +932,13 @@ app.get('/api/auth/check', (req, res) => {
     const token = req.cookies.pws_token;
     res.json({ authenticated: !!token });
 });
+
+// ============================================
+// SERVIR LES FICHIERS STATIQUES (APRÈS LES ROUTES API)
+// ============================================
+
+// Servir les fichiers statiques
+app.use(express.static(path.join(__dirname)));
 
 // Routes de l'application
 app.get('/', (req, res) => {

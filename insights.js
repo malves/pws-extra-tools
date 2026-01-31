@@ -228,8 +228,9 @@ function displayPowerSpaceData(data, startDate, endDate) {
     // Tableau des annonceurs par reseller
     if (data.resellers && data.resellers.length > 0) {
         html += `
-            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div class="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <!-- Header avec bouton Générer rapport -->
+            <div id="advertiser-header" class="advertiser-table-header bg-white dark:bg-gray-800 rounded-t-xl border border-gray-200 dark:border-gray-700 border-b-0 p-6">
+                <div class="flex items-center justify-between mb-4">
                     <h3 class="text-xl font-semibold text-gray-900 dark:text-white">Détails par annonceur</h3>
                     <button 
                         id="generate-report-btn-table"
@@ -241,6 +242,27 @@ function displayPowerSpaceData(data, startDate, endDate) {
                         <span id="selected-count-table" class="ml-2 px-2 py-0.5 bg-white/20 rounded text-xs">0</span>
                     </button>
                 </div>
+                <div class="relative">
+                    <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500"></i>
+                    <input 
+                        type="text" 
+                        id="advertiser-search"
+                        placeholder="Rechercher un annonceur..."
+                        oninput="filterAdvertisers()"
+                        class="w-full pl-10 pr-10 py-2.5 text-sm border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-400 dark:placeholder-gray-500"
+                    >
+                    <button 
+                        id="clear-search-btn"
+                        onclick="clearAdvertiserSearch()"
+                        class="hidden absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                        title="Effacer la recherche"
+                    >
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <!-- Tableau des annonceurs -->
+            <div class="bg-white dark:bg-gray-800 rounded-b-xl border border-gray-200 dark:border-gray-700 border-t-0 overflow-hidden">
                 <div class="overflow-x-auto">
                     <table class="w-full">
                         <thead class="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
@@ -303,6 +325,95 @@ function displayPowerSpaceData(data, startDate, endDate) {
     }
     
     container.innerHTML = html;
+    
+    // Initialiser le comportement sticky pour le header
+    initStickyAdvertiserHeader();
+}
+
+// Fonction pour initialiser le comportement sticky du header des annonceurs
+function initStickyAdvertiserHeader() {
+    const header = document.getElementById('advertiser-header');
+    if (!header) return;
+    
+    const scrollContainer = document.getElementById('main-scroll-container');
+    if (!scrollContainer) return;
+    
+    // Créer le placeholder
+    const placeholder = document.createElement('div');
+    placeholder.id = 'advertiser-header-placeholder';
+    placeholder.className = 'advertiser-header-placeholder';
+    header.parentNode.insertBefore(placeholder, header.nextSibling);
+    
+    // Sauvegarder les dimensions originales
+    let headerHeight = header.offsetHeight;
+    let headerWidth = header.offsetWidth;
+    let headerLeft = header.getBoundingClientRect().left;
+    
+    function updateHeaderDimensions() {
+        if (!header.classList.contains('is-fixed')) {
+            headerHeight = header.offsetHeight;
+            headerWidth = header.offsetWidth;
+            headerLeft = header.getBoundingClientRect().left;
+        }
+    }
+    
+    function checkStickyState() {
+        const scrollContainerRect = scrollContainer.getBoundingClientRect();
+        const placeholderRect = placeholder.getBoundingClientRect();
+        
+        // Position où le header devient fixed (quand le placeholder touche le haut du scroll container)
+        const shouldBeFixed = placeholderRect.top <= scrollContainerRect.top && 
+                              placeholder.classList.contains('is-visible') ||
+                              header.getBoundingClientRect().top <= scrollContainerRect.top && 
+                              !placeholder.classList.contains('is-visible');
+        
+        if (shouldBeFixed && !header.classList.contains('is-fixed')) {
+            // Sauvegarder les dimensions avant de fixer
+            headerHeight = header.offsetHeight;
+            headerWidth = header.offsetWidth;
+            headerLeft = placeholder.classList.contains('is-visible') 
+                ? placeholder.getBoundingClientRect().left 
+                : header.getBoundingClientRect().left;
+            
+            // Activer le mode fixed
+            placeholder.style.height = headerHeight + 'px';
+            placeholder.classList.add('is-visible');
+            
+            header.classList.add('is-fixed');
+            header.style.top = scrollContainerRect.top + 'px';
+            header.style.left = headerLeft + 'px';
+            header.style.width = headerWidth + 'px';
+        } else if (!shouldBeFixed && header.classList.contains('is-fixed')) {
+            // Désactiver le mode fixed
+            header.classList.remove('is-fixed');
+            header.style.top = '';
+            header.style.left = '';
+            header.style.width = '';
+            placeholder.classList.remove('is-visible');
+        } else if (header.classList.contains('is-fixed')) {
+            // Mettre à jour la position top si le container scroll change
+            header.style.top = scrollContainerRect.top + 'px';
+        }
+    }
+    
+    // Écouter le scroll
+    scrollContainer.addEventListener('scroll', checkStickyState);
+    
+    // Écouter le resize
+    window.addEventListener('resize', () => {
+        if (header.classList.contains('is-fixed')) {
+            const placeholderRect = placeholder.getBoundingClientRect();
+            const scrollContainerRect = scrollContainer.getBoundingClientRect();
+            header.style.top = scrollContainerRect.top + 'px';
+            header.style.left = placeholderRect.left + 'px';
+            header.style.width = placeholderRect.width + 'px';
+        } else {
+            updateHeaderDimensions();
+        }
+    });
+    
+    // Vérification initiale
+    checkStickyState();
 }
 
 // État des annonceurs chargés
@@ -620,6 +731,76 @@ function toggleAdGroupSelection(adGroupId, campaignId) {
     }
     
     updateSelectionCount();
+}
+
+// Fonction pour filtrer les annonceurs
+function filterAdvertisers() {
+    const searchInput = document.getElementById('advertiser-search');
+    const clearBtn = document.getElementById('clear-search-btn');
+    
+    if (!searchInput) return;
+    
+    const searchTerm = searchInput.value.toLowerCase().trim();
+    
+    // Afficher/masquer le bouton de suppression
+    if (clearBtn) {
+        if (searchInput.value.length > 0) {
+            clearBtn.classList.remove('hidden');
+        } else {
+            clearBtn.classList.add('hidden');
+        }
+    }
+    
+    // Obtenir toutes les lignes d'annonceurs
+    const advertiserRows = document.querySelectorAll('[id^="advertiser-row-"]');
+    
+    advertiserRows.forEach((row, index) => {
+        const advertiserName = row.querySelector('.text-sm.font-medium');
+        if (!advertiserName) return;
+        
+        const name = advertiserName.textContent.toLowerCase();
+        const matchesSearch = name.includes(searchTerm);
+        
+        // Afficher ou masquer la ligne de l'annonceur en utilisant une classe custom
+        if (matchesSearch) {
+            row.classList.remove('search-hidden');
+        } else {
+            row.classList.add('search-hidden');
+            // Masquer aussi la ligne des campagnes associée si elle est ouverte
+            const advertiserId = row.id.replace('advertiser-row-', '');
+            const campaignRow = document.getElementById(`campaigns-row-${advertiserId}`);
+            if (campaignRow) {
+                campaignRow.classList.add('search-hidden');
+            }
+        }
+    });
+}
+
+// Fonction pour effacer la recherche
+function clearAdvertiserSearch() {
+    const searchInput = document.getElementById('advertiser-search');
+    const clearBtn = document.getElementById('clear-search-btn');
+    
+    if (searchInput) {
+        searchInput.value = '';
+        searchInput.focus();
+    }
+    
+    if (clearBtn) {
+        clearBtn.classList.add('hidden');
+    }
+    
+    // Réafficher tous les annonceurs en retirant la classe de filtre
+    const advertiserRows = document.querySelectorAll('[id^="advertiser-row-"]');
+    const campaignRows = document.querySelectorAll('[id^="campaigns-row-"]');
+    
+    advertiserRows.forEach(row => {
+        row.classList.remove('search-hidden');
+    });
+    
+    campaignRows.forEach(row => {
+        row.classList.remove('search-hidden');
+    });
 }
 
 // Fonction pour générer le rapport
