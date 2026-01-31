@@ -1,189 +1,176 @@
 #!/bin/bash
 
-################################################################################
-# Script de build et push Docker vers DockerHub
-# Usage: ./build-and-push.sh <version>
-# Exemple: ./build-and-push.sh 1.0
-################################################################################
+# Script de déploiement pour kleekr/pws-extra-tools
+# Usage: 
+#   ./deploy.sh <version>  - Déployer une version
+#   ./deploy.sh list       - Lister les tags existants
+# Example: ./deploy.sh 1.0
 
-set -e  # Arrêter le script en cas d'erreur
+set -e  # Arrêter en cas d'erreur
 
-# Couleurs pour les logs
+# Couleurs pour les messages
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Configuration
-DOCKER_USERNAME="kleekr"
+DOCKER_REGISTRY="kleekr"
 IMAGE_NAME="pws-extra-tools"
-FULL_IMAGE_NAME="${DOCKER_USERNAME}/${IMAGE_NAME}"
-BUILD_DIR="."
 
-# Fonction pour afficher les logs
-log_info() {
-    echo -e "${BLUE}ℹ️  $1${NC}"
-}
-
-log_success() {
-    echo -e "${GREEN}✅ $1${NC}"
-}
-
-log_warning() {
-    echo -e "${YELLOW}⚠️  $1${NC}"
-}
-
-log_error() {
-    echo -e "${RED}❌ $1${NC}"
-}
-
-# Fonction pour afficher l'usage
-usage() {
-    echo "Usage: $0 <version>"
+# Fonction pour lister les tags
+function list_tags() {
     echo ""
-    echo "Exemples:"
-    echo "  $0 1.0        # Build et push la version 1.0"
-    echo "  $0 1.1.2      # Build et push la version 1.1.2"
-    echo "  $0 latest     # Build et push comme latest (déconseillé)"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BLUE}🏷️  Tags Docker Hub pour ${DOCKER_REGISTRY}/${IMAGE_NAME}${NC}"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    
+    echo -e "${YELLOW}📡 Récupération des tags depuis Docker Hub...${NC}"
+    echo ""
+    
+    RESPONSE=$(curl -s "https://hub.docker.com/v2/repositories/${DOCKER_REGISTRY}/${IMAGE_NAME}/tags/?page_size=100")
+    
+    if echo "$RESPONSE" | grep -q "\"count\":0"; then
+        echo -e "${YELLOW}⚠️  Aucun tag trouvé ou le repository n'existe pas encore${NC}"
+        echo ""
+        exit 0
+    fi
+    
+    echo -e "${GREEN}📦 Tags disponibles (du plus récent au plus ancien):${NC}"
+    echo ""
+    
+    echo "$RESPONSE" | jq -r '.results[] | "\(.last_updated)|\(.name)"' 2>/dev/null | sort -r | while IFS='|' read -r date tag; do
+        formatted_date=$(date -d "$date" "+%Y-%m-%d %H:%M" 2>/dev/null || echo "$date")
+        printf "   ${CYAN}%-20s${NC} ${GREEN}%s${NC}\n" "$tag" "$formatted_date"
+    done
+    
+    if ! command -v jq &> /dev/null; then
+        echo -e "${YELLOW}⚠️  jq n'est pas installé. Affichage basique des tags:${NC}"
+        echo "$RESPONSE" | grep -o '"name":"[^"]*"' | cut -d'"' -f4 | sort -r | while read -r tag; do
+            echo -e "   ${GREEN}$tag${NC}"
+        done
+    fi
+    
+    echo ""
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    echo -e "${BLUE}🚀 Pour déployer:${NC}"
+    echo -e "   ./deploy.sh <version>"
+    echo ""
+    
+    exit 0
+}
+
+# Si le premier argument est "list", afficher les tags
+if [ "$1" = "list" ]; then
+    list_tags
+fi
+
+# Vérifier si une version est fournie
+if [ -z "$1" ]; then
+    echo -e "${RED}❌ Erreur: Version manquante${NC}"
+    echo ""
+    echo "Usage: ./deploy.sh <version>  - Déployer une version"
+    echo "       ./deploy.sh list       - Lister les tags existants"
+    echo ""
+    echo "Example: ./deploy.sh 1.0"
     echo ""
     exit 1
-}
-
-# Vérifier les arguments
-if [ $# -eq 0 ]; then
-    log_error "Aucune version spécifiée"
-    usage
 fi
 
 VERSION=$1
+FULL_IMAGE_NAME="${DOCKER_REGISTRY}/${IMAGE_NAME}:${VERSION}"
+LATEST_IMAGE_NAME="${DOCKER_REGISTRY}/${IMAGE_NAME}:latest"
 
-# Validation du format de version (optionnel mais recommandé)
-if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]] && [ "$VERSION" != "latest" ]; then
-    log_warning "Format de version non standard: $VERSION"
-    log_warning "Format recommandé: X.Y ou X.Y.Z (ex: 1.0 ou 1.1.2)"
-    read -p "Continuer quand même ? (y/N) " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        log_info "Opération annulée"
-        exit 0
+echo ""
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${BLUE}🚀 Déploiement de ${IMAGE_NAME} vers Docker Hub${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+
+# Lister les tags existants sur Docker Hub
+echo -e "${YELLOW}📡 Vérification des tags existants sur Docker Hub...${NC}"
+RESPONSE=$(curl -s "https://hub.docker.com/v2/repositories/${DOCKER_REGISTRY}/${IMAGE_NAME}/tags/?page_size=100")
+
+if echo "$RESPONSE" | grep -q "\"count\":0"; then
+    echo -e "${GREEN}✅ Aucun tag existant - Premier déploiement${NC}"
+else
+    echo -e "${GREEN}📦 Tags existants (5 derniers):${NC}"
+    echo "$RESPONSE" | jq -r '.results[] | "\(.last_updated)|\(.name)"' 2>/dev/null | sort -r | head -5 | while IFS='|' read -r date tag; do
+        formatted_date=$(date -d "$date" "+%Y-%m-%d %H:%M" 2>/dev/null || echo "$date")
+        printf "   ${BLUE}%-20s${NC} %s\n" "$tag" "$formatted_date"
+    done
+    
+    # Vérifier si le tag existe déjà (sauf latest)
+    if [ "$VERSION" != "latest" ]; then
+        TAG_EXISTS=$(echo "$RESPONSE" | jq -r '.results[].name' 2>/dev/null | grep -x "$VERSION" || echo "")
+        
+        if [ -n "$TAG_EXISTS" ]; then
+            echo ""
+            echo -e "${RED}⚠️  ATTENTION: Le tag ${VERSION} existe déjà !${NC}"
+            echo ""
+            read -p "$(echo -e ${YELLOW}Voulez-vous vraiment écraser ce tag? [y/N]: ${NC})" -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                echo -e "${RED}❌ Déploiement annulé${NC}"
+                echo ""
+                exit 1
+            fi
+            echo -e "${YELLOW}⚠️  Écrasement du tag confirmé${NC}"
+        fi
     fi
 fi
-
-# Vérifier que Docker est installé
-if ! command -v docker &> /dev/null; then
-    log_error "Docker n'est pas installé ou n'est pas dans le PATH"
-    exit 1
-fi
-
-# Vérifier que le Dockerfile existe
-if [ ! -f "${BUILD_DIR}/Dockerfile" ]; then
-    log_error "Dockerfile introuvable dans ${BUILD_DIR}/"
-    exit 1
-fi
-
-# Afficher les informations
-echo ""
-log_info "==================================================================="
-log_info "  Build et Push Docker Image - PET Dashboard"
-log_info "==================================================================="
-log_info "Image: ${FULL_IMAGE_NAME}"
-log_info "Version: ${VERSION}"
-log_info "Répertoire: ${BUILD_DIR}"
-log_info "==================================================================="
 echo ""
 
-# Demander confirmation
-read -p "Voulez-vous continuer ? (y/N) " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    log_info "Opération annulée"
-    exit 0
-fi
+echo -e "📦 Image: ${GREEN}${FULL_IMAGE_NAME}${NC}"
+echo -e "🏷️  Tag:   ${GREEN}${VERSION}${NC}"
+echo ""
 
-# Vérifier la connexion Docker Hub
-log_info "Vérification de la connexion à Docker Hub..."
-if ! docker info &> /dev/null; then
-    log_error "Docker n'est pas démarré"
-    exit 1
-fi
-
-# Vérifier si l'utilisateur est connecté à Docker Hub
-if ! docker info 2>&1 | grep -q "Username"; then
-    log_warning "Vous n'êtes pas connecté à Docker Hub"
-    log_info "Tentative de connexion..."
+# Vérifier si on est connecté à Docker Hub
+echo -e "${YELLOW}🔐 Vérification de la connexion Docker Hub...${NC}"
+if ! docker info | grep -q "Username"; then
+    echo -e "${RED}❌ Non connecté à Docker Hub${NC}"
+    echo -e "${YELLOW}Connexion en cours...${NC}"
     docker login
-    if [ $? -ne 0 ]; then
-        log_error "Échec de connexion à Docker Hub"
-        exit 1
-    fi
 fi
-
-log_success "Connecté à Docker Hub"
-
-# Build de l'image Docker
-log_info "Construction de l'image Docker..."
-log_info "Cette opération peut prendre quelques minutes..."
+echo -e "${GREEN}✅ Connecté à Docker Hub${NC}"
 echo ""
 
-if docker build -t "${FULL_IMAGE_NAME}:${VERSION}" "${BUILD_DIR}"; then
-    log_success "Image construite avec succès"
-else
-    log_error "Échec de la construction de l'image"
-    exit 1
-fi
+# Build de l'image
+echo -e "${YELLOW}🔨 Build de l'image Docker...${NC}"
+docker build -t ${FULL_IMAGE_NAME} -t ${LATEST_IMAGE_NAME} .
+echo -e "${GREEN}✅ Build terminé${NC}"
+echo ""
 
-# Tag comme latest si ce n'est pas déjà latest
-if [ "$VERSION" != "latest" ]; then
-    log_info "Création du tag latest..."
-    if docker tag "${FULL_IMAGE_NAME}:${VERSION}" "${FULL_IMAGE_NAME}:latest"; then
-        log_success "Tag latest créé"
-    else
-        log_warning "Échec de création du tag latest (non bloquant)"
-    fi
-fi
+# Push de l'image avec version
+echo -e "${YELLOW}📤 Push de ${FULL_IMAGE_NAME}...${NC}"
+docker push ${FULL_IMAGE_NAME}
+echo -e "${GREEN}✅ Image ${VERSION} pushée avec succès${NC}"
+echo ""
 
-# Push vers Docker Hub
+# Push de l'image latest
+echo -e "${YELLOW}📤 Push de ${LATEST_IMAGE_NAME}...${NC}"
+docker push ${LATEST_IMAGE_NAME}
+echo -e "${GREEN}✅ Image latest pushée avec succès${NC}"
 echo ""
-log_info "Push de l'image vers Docker Hub..."
-log_info "Tag: ${VERSION}"
 
-if docker push "${FULL_IMAGE_NAME}:${VERSION}"; then
-    log_success "Image ${VERSION} poussée avec succès"
-else
-    log_error "Échec du push de l'image ${VERSION}"
-    exit 1
-fi
+# Récapitulatif
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${GREEN}✅ Déploiement terminé avec succès !${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+echo -e "${GREEN}📦 Images disponibles:${NC}"
+echo -e "   • ${FULL_IMAGE_NAME}"
+echo -e "   • ${LATEST_IMAGE_NAME}"
+echo ""
+echo -e "${BLUE}🚀 Pour utiliser cette image:${NC}"
+echo -e "   docker pull ${FULL_IMAGE_NAME}"
+echo -e "   docker run -p 3000:3000 -v ./data:/app/data ${FULL_IMAGE_NAME}"
+echo ""
+echo -e "${BLUE}🔗 Docker Hub:${NC}"
+echo -e "   https://hub.docker.com/r/${DOCKER_REGISTRY}/${IMAGE_NAME}"
+echo ""
 
-# Push du tag latest
-if [ "$VERSION" != "latest" ]; then
-    log_info "Push du tag latest..."
-    if docker push "${FULL_IMAGE_NAME}:latest"; then
-        log_success "Tag latest poussé avec succès"
-    else
-        log_warning "Échec du push du tag latest (non bloquant)"
-    fi
-fi
-
-# Résumé final
-echo ""
-log_success "==================================================================="
-log_success "  🎉 Opération terminée avec succès !"
-log_success "==================================================================="
-log_success "Image disponible sur Docker Hub:"
-log_success "  - ${FULL_IMAGE_NAME}:${VERSION}"
-if [ "$VERSION" != "latest" ]; then
-    log_success "  - ${FULL_IMAGE_NAME}:latest"
-fi
-echo ""
-log_info "Commandes pour utiliser l'image:"
-echo "  docker pull ${FULL_IMAGE_NAME}:${VERSION}"
-echo "  docker run -p 3000:3000 ${FULL_IMAGE_NAME}:${VERSION}"
-echo ""
-log_info "Ou avec docker-compose:"
-echo "  docker-compose pull"
-echo "  docker-compose up -d"
-echo ""
-log_info "Lien Docker Hub:"
-echo "  https://hub.docker.com/r/${DOCKER_USERNAME}/${IMAGE_NAME}"
-echo ""
